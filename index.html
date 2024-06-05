@@ -1,1 +1,434 @@
-hello
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="./img/cover.ico">
+    <title>麵包裡的書頁</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .chat-container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin: 20px;
+        }
+
+        .chat-header {
+            background-color: #4a90e2;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2em;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            border-top: 1px solid #ddd;
+            max-height: 60vh;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .userMessage {
+            background-color: #e1ffc7;
+            margin-left: auto;
+        }
+
+        .botMessage {
+            background-color: #f1f1f1;
+        }
+
+        .chat-footer {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            justify-content: center;
+        }
+
+        .chat-footer input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+            max-width: 70%;
+        }
+
+        .chat-footer button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4a90e2;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .chat-footer button:hover {
+            background-color: #357ab7;
+        }
+
+        #sceneImage {
+            margin-top: 20px;
+        }
+
+        #startButton {
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #fff;
+            border-radius: 5px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        #startButton:hover {
+            background: rgba(0, 0, 0, 1);
+            box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.5);
+        }
+
+              
+        #loadingMessage {
+            text-align: center;
+            font-size: 1.2em;
+            color: #888;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div id="coverImage" style="text-align: center;">
+            <img src="./img/cover.jpg" alt="Cover Image" style="width: 300px; max-width: 80vw;">
+        </div>   
+        <button id="startButton">Start Game</button>
+
+        <div class="chat" style="display: none;">
+        <div class="chat-header">麵包裡的書頁</div>     
+        <div id="messages" class="chat-messages">
+            <div id="sceneImage"></div>
+        </div>
+        <div id="loadingMessage" >AI輸入中...</div>
+        <div class="chat-footer">
+            <form id="messageForm">
+                <input type="text" id="messageInput" placeholder="Type your message here..." required>
+                <button id="sendMessageBtn" type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+    </div>
+    <script>
+        var conversationHistory = [];
+
+        var apiKey = prompt("Please enter your API key:", "");
+
+        if (!apiKey) {
+            alert("API key and name are required to use the chatroom.");
+            location.reload();
+        } else {
+            document.getElementById('messageForm').addEventListener('submit', function (event) {
+                event.preventDefault();
+                var message = document.getElementById('messageInput').value;
+
+                addToConversationHistory('user', message);
+                displayMessage(message, 'user');
+
+                document.getElementById('loadingMessage').style.display = 'block';
+
+                fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "contents": conversationHistory,
+                        "safetySettings": [
+                            {
+                                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                                "threshold": "BLOCK_ONLY_HIGH"
+                            },
+                            {
+                                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                "threshold": "BLOCK_ONLY_HIGH"
+                            },
+                        ],
+                        "generationConfig": {
+                            "stopSequences": [
+                                ""
+                            ],
+                            "temperature": 1.0,
+                            "maxOutputTokens": 2048,
+                            "topP": 0.8,
+                            "topK": 10
+                        }
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('loadingMessage').style.display = 'none';
+                        var responseText = data.candidates[0].content.parts[0].text;
+                        addToConversationHistory('model', responseText);
+                        displayMessage(responseText, 'bot');
+                    })
+                    .catch(error => console.error('Error:', error))
+                    .finally(() => {
+                        document.getElementById('loadingMessage').style.display = 'none'; // Hide loading message
+                    });
+
+                document.getElementById('messageInput').value = '';
+            });
+        }
+
+        function addToConversationHistory(role, text) {
+            conversationHistory.push({
+                "role": role,
+                "parts": [{
+                    "text": text
+                }]
+            });
+        }
+
+        function displayMessage(message, sender) {
+            var messageElement = document.createElement('div');
+            var formatMessage = formatText(message);
+            messageElement.innerHTML = formatMessage;
+            messageElement.classList.add('message');
+            if (sender === 'user') {
+                messageElement.classList.add('userMessage');
+            } else {
+                messageElement.classList.add('botMessage');
+            }
+            document.getElementById('messages').appendChild(messageElement);
+            // Scroll to bottom
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+            document.getElementById('loadingMessage').style.display = 'none'; // Hide loading message
+            updateSceneImage(message);
+        }
+
+        function updateSceneImage(responseText) {
+            let sceneMatch = responseText.match(/<場景>：(.*?)\s/); // 使用正則表達式匹配場景描述
+            if (sceneMatch && sceneMatch[1]) {
+                updateSceneImage2(sceneMatch);
+            } else{
+                sceneMatch = responseText.match(/場景：(.*?)\s/);
+                if (sceneMatch && sceneMatch[1]) {
+                    updateSceneImage2(sceneMatch);
+                }
+            }
+        }
+
+        function updateSceneImage2(sceneMatch){
+            let scene = sceneMatch[1];
+                console.log(scene);
+                // 檢查scene是否包含"宿舍"
+                if (scene.includes("食堂")) {
+                    document.getElementById('sceneImage').innerHTML = '<img src="./img/cover.jpg" alt="Dorm" style="width: 300px; max-width: 50vw; margin-left: 0;">';
+                } else if (scene.includes("聚會")) {
+                    document.getElementById('sceneImage').innerHTML = '<img src="../img/party.jpeg" alt="Dorm" style="width: 300px; max-width: 80vw;">';
+                } else if (scene.includes("圖書館")) {
+                    document.getElementById('sceneImage').innerHTML = '<img src="../img/library.jpeg" alt="Dorm" style="width: 300px; max-width: 80vw;">';
+                }
+                else {
+                    // 如果不包含"宿舍"，可以在這裡處理其他情況或者不進行任何操作
+                    // 例如清空圖片或顯示預設圖片
+                    document.getElementById('sceneImage').innerHTML = ''; // 清空圖片
+                }
+        }
+
+        function formatText(text) {
+            let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<br><strong>$1</strong>');
+
+            formattedText = formattedText.replace(/\*(.*?)\s/g, '<br>$1');
+
+            return formattedText;
+        }
+
+        document.getElementById('startButton').addEventListener('click', function () {
+            this.style.display = 'none'; 
+            document.getElementById('coverImage').style.display = 'none';
+            document.querySelector('.chat').style.display = 'block';
+            conversationHistory.push({
+                "role": 'user',
+                "parts": [{
+                    "text": `進行一場文字遊戲，你扮演主持人，要完全照著腳本走，如果劇情還是不小心走偏了，盡快導到結局，一定要玩到結局才能結束，若玩家未在回答10次以內通到結局，則通到"壞結局2"，以下是腳本：
+                        """
+                        
+                        遊戲標題：麵包裡的書頁
+                        遊戲背景：
+                        在一個平凡的小鎮裡，有個高中。這裡的學生們每天都在食堂購買美味的麵包。然而，某天，食堂的麵包裡突然夾了一張書頁。主角艾米是一個熱愛偵探小說的高中生，她決定展開調查。
+
+                        主要角色：
+                        艾米：主角，熱愛偵探小說的高中生。
+                        書店老闆：一位老書店的店主，背後有不為人知的秘密。
+                        遊戲腳本流程：
+                        開場：
+                        場景：學校食堂
+
+                        劇情：學生們每天都會在食堂購買美味的麵包，在一個普通的午後，艾米發現學校食堂的麵包裡不知為何夾了一張書頁。她決定展開調查，在食堂仔細觀察後，發現書頁似乎與某些特定的時間和事件有關。
+
+                        選擇：
+
+                        選擇A：詢問食堂的工作人員。(進入食堂工作人員劇情。)
+                        選擇B：在校園內尋找更多線索。(進入校園調查劇情。)
+                        食堂工作人員劇情：
+                        場景：學校食堂
+
+                        劇情：艾米詢問食堂的工作人員，但工作人員們對書頁一事一無所知。他們提到最近書店的推理小說很受歡迎，許多學生都在讀這本書。
+
+                        選擇：
+
+                        選擇A：前往學校附近的書店調查。(進入書店劇情。)
+                        選擇B：在食堂內繼續調查，尋找更多線索。(進入廚房劇情。)
+                        校園調查劇情：
+                        場景：校園
+
+                        劇情：艾米在校園內尋找更多線索，發現有幾個學生也在討論麵包裡夾書頁的事情。他們提到最近書店的一本推理小說很受歡迎，許多學生都在讀這本書。
+
+                        選擇：
+
+                        選擇A：前往學校附近的書店調查。(進入書店劇情。)
+                        選擇B：在校園內尋找更多讀過這本書的學生了解情況。(進入讀者調查劇情。)
+                        書店劇情：
+                        場景：學校附近的書店
+
+                        劇情：艾米來到書店，她在書店裡發現了一本特定的推理小說，每次有人買了這本小說後，食堂的麵包裡就會夾書頁。她決定對書店老闆進行進一步調查。
+
+                        選擇：
+
+                        選擇A：直接與書店老闆對質。(進入對質劇情。)
+                        選擇B：暗中觀察書店老闆的行為。(進入暗中觀察劇情。)
+                        廚房劇情：
+                        場景：學校食堂廚房
+
+                        劇情：艾米進入廚房，發現了一些空的麵包包裝和一些被丟棄的筆記。她在筆記中找到了幾個關鍵詞，這些關鍵詞似乎與那本特定的推理小說有關。
+
+                        選擇：
+
+                        選擇A：根據筆記中的線索前往書店調查。(進入書店劇情。)
+                        選擇B：詢問更多在廚房工作的員工。(進入員工訪談劇情。)
+                        讀者調查劇情：
+                        場景：校園
+
+                        劇情：艾米找到了一些讀過這本推理小說的學生，這些學生提到他們在讀完書後都會去食堂買麵包。艾米開始懷疑這本書與麵包裡夾書頁有關。
+
+                        選擇：
+
+                        選擇A：前往書店調查這本推理小說。(進入書店劇情。)
+                        員工訪談劇情：
+                        場景：學校食堂
+
+                        劇情：艾米詢問更多在廚房工作的員工，發現這些員工對麵包夾書頁一事都不知情，但提到最近有一個神秘人物經常出現在食堂附近。
+
+                        選擇：
+
+                        選擇A：前往書店調查這個神秘人物。(進入書店劇情。)
+                        暗中觀察劇情：
+                        場景：學校附近的書店
+
+                        劇情：艾米暗中觀察書店老闆，發現他在每次有人買了那本特定的推理小說後，都會悄悄地在店裡進行一些奇怪的動作。
+
+                        選擇：
+
+                        選擇A：直接與書店老闆對質。(進入對質劇情。)
+                        選擇B：回到學校食堂，尋找更多線索。(進入廚房劇情。)
+                        對質劇情：
+                        場景：書店內部
+
+                        劇情：艾米與書店老闆對質後，他坦承了一切。原來，他曾經是一位失意的小說家，為了吸引人們閱讀自己的作品，他想出了這個狡猾的計劃，將書頁夾入麵包，吸引吃到那個麵包的人閱讀他的小說。他還利用一種特殊的墨水在小說裡附帶了隱藏信息，有些讀者覺得有趣，便遵循書中的指引，跟著將書頁夾入麵包。然而，他並不是想要傷害任何人，只是希望更多人讀到他的故事。
+
+                        選擇：
+
+                        選擇A：幫助書店老闆重新振作。(進入幫助書店老闆結局。)
+                        選擇B：報告學校管理員，解決問題。(進入解決問題結局。)
+                        選擇C：嘗試自己處理這個問題，不告訴管理員。(進入壞結局。)
+                        結局：
+                        幫助書店老闆結局：
+                        艾米決定幫助書店老闆重新振作。她舉辦了一場推理小說閱讀會，邀請了全校的學生參加。在活動中，書店老闆得到了許多讚揚和支持，他也意識到，真正的成功並不是靠詭計，而是靠真誠和努力。從此之後，小鎮變得更加熱鬧。
+
+                        解決問題結局：
+                        艾米將書店老闆的計劃告訴了學校管理員，管理員決定幫助書店老闆推廣他的書籍，而不是用這種手段。書店老闆也意識到自己的錯誤，改變了方式，最終成功吸引了更多讀者。
+
+                        壞結局：
+                        艾米決定自己處理這個問題，不告訴管理員。然而，書店老闆的計劃越來越複雜，最終失控。學校管理員發現了這些異常情況，誤以為是艾米的惡作劇。最終，艾米被誤認為是罪魁禍首，受到了校方的處罰。她沒有成功解決問題，這次冒險以失敗告終。"""
+                        
+                        壞結局2：
+                        艾米調查得太慢了。因為艾米一直在麵包事件的相關地點徘徊，學校管理員誤以為這是艾米的惡作劇。最終，艾米被誤認為是罪魁禍首，受到了校方的處罰。她沒有成功解決問題，這次冒險以失敗告終。提示：或許艾米下次可以去書店調查看看？"""
+                        請根據腳本中的對話，開始一個文字冒險遊戲，不可以更改我給你的劇情描述，要完全照著腳本走，請適當換行，方便玩家閱讀，每一次的對話，都需要呈現以下格式與資訊，<場景>、<劇情>、<選擇>結束後分別換行：
+                        <場景>：目前場景
+                        <劇情>：目前故事段落的劇情描述
+                        <選擇>：在每一次的對話中，你都會根據腳本給我可以選擇的動作，不要把括號裡的文字也顯示給玩家看，然後根據我選擇的動作對照括號裡的指示，繼續接下來的劇情，若玩家未在回答10次以內通到結局，則通到"壞結局2"。根據我的選擇進行故事就好，不要幫我做出選擇。選項要遵從腳本，你不要自己產生新選項。
+                        
+                        `
+                }]
+            })
+            fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "contents": conversationHistory,
+                    "safetySettings": [
+                        {
+                            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                            "threshold": "BLOCK_NONE"
+                        },
+                        {
+                            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            "threshold": "BLOCK_NONE"
+                        },
+                    ],
+                    "generationConfig": {
+                        "stopSequences": [
+                            ""
+                        ],
+                        "temperature": 2.0,
+                        "maxOutputTokens": 2048,
+                        "topP": 0.8,
+                        "topK": 10
+                    }
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(conversationHistory);
+                    var responseText = data.candidates[0].content.parts[0].text;
+                    addToConversationHistory('model', responseText);
+                    displayMessage(responseText, 'bot');
+                })
+                .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+
+</html>
